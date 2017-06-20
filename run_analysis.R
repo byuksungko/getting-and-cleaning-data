@@ -1,77 +1,85 @@
-rm(list=ls())
+# From problem description:
+## You should create one R script called run_analysis.R that does the following. 
+##
+## Merges the training and the test sets to create one data set.
+## Extracts only the measurements on the mean and standard deviation for each measurement. 
+## Uses descriptive activity names to name the activities in the data set
+## Appropriately labels the data set with descriptive variable names. 
+## Creates a second, independent tidy data set with the average of each variable for each activity and each subject. 
+##
+##From the submission instructions:
+## Please upload your data set as a txt file created with write.table() using row.name=FALSE
+## (do not cut and paste a dataset directly into the text box, as this may cause errors saving your submission).
 
-setwd("C:/Users/DELL/Desktop/R")
-getwd()
+## We begin by putting the script in the same directory where we have the dataset directory
+## (One level up from the actual data files, like features.txt)
 
-install.packages("data.table")
+## Using R 3.1.1
 
-library(dplyr)
-library(data.table)
+library("reshape2")
 
-x_test <- read.table("X_test.txt")
-y_test <- read.table("y_test.txt")
-s_test <- read.table("subject_test.txt")
+## Step 1-1:
+## READ ALL THE DATA!!
 
-x_train <- read.table("X_train.txt")
-y_train <- read.table("y_train.txt")
-s_train <- read.table("subject_train.txt")
+## basedir <- "UCI HAR Dataset/"
+activity_labels <- read.table("UCI HAR Dataset/activity_labels.txt")
 
-feature <- read.table("features.txt")
-label <- read.table("activity_labels.txt")
+features <- read.table("UCI HAR Dataset/features.txt") ## 561 obs of 2 vars, rownums incl
+features <- features[2] ## simplify, cut row numbers
+features <- as.vector(features[,1]) ## it works, but not pretty.
 
+x_test <- read.table("UCI HAR Dataset/test/X_test.txt", colClasses = c("numeric"), col.names = features) ## 2947 obs of 561 vars
+y_test <- read.table("UCI HAR Dataset/test/y_test.txt") ## 2947 obs of 1 var
+subject_test <- read.table("UCI HAR Dataset/test/subject_test.txt") ## 2947 obs of 1 v
 
+## take only the columns we want
+x_test <- x_test[c(201, 202, 214, 215, 227, 228, 240, 241, 253, 254, 503, 504, 516, 517, 529, 530, 542, 543)]
 
-##1.Merges the training and the test sets to create one data set.
-x <- rbind(x_test, x_train)
-y <- rbind(y_test, y_train)
-s <- rbind(s_test, s_train)
+x_test[,"activity"] <- y_test
+x_test$activity <- as.factor(x_test$activity)
+x_test[, "subject"] <- subject_test
+x_test$subject <- as.factor(x_test$subject)
 
-##naming
-names(x) <- feature[[2]]
-names(y) <- "Activity"
-names(s) <- "Subject"
-
-##merge data
-m <- cbind(s,y,x)
-
-head(m,5)
-
-##2.Extracts only the measurements on the mean and standard deviation for each measurement. 
-data_Mean <- grep("Mean", names(m))
-data_mean <- grep("mean", names(m))
-data_Std <- grep("Std", names(m))
-data_std <- grep("std", names(m))
-t_data <- c(data_Mean, data_mean, data_Std, data_std)
-Edata <-m[,c(1,2,t_data)]
-
-
-
-##3.Uses descriptive activity names to name the activities in the data set
-Edata <- mutate(Edata, Activity=factor(Activity, labels=c("WALKING", "WALKING_UPSTAIRS", "WALKING_DOWNSTAIRS", "SITTING", "STANDING", "LAYING")))
-str(Edata)
-
-##4.Appropriately labels the data set with descriptive variable names. 
-
-names(Edata) <- gsub("^t", "Time", names(Edata)) 
-names(Edata) <- gsub("^f", "Frequency", names(Edata)) 
-names(Edata) <- gsub("BodyBody", "Body", names(Edata)) 
-names(Edata) <- gsub("Acc", "Accelerometer", names(Edata))
-names(Edata) <- gsub("Gyro", "Gyroscope",names(Edata))
-names(Edata) <- gsub("Mag", "Magnitude", names(Edata))
-names(Edata) <- gsub("angle", "Angle", names(Edata))
-names(Edata) <- gsub("gravity", "Gravity", names(Edata))
-names(Edata)
+## Ugly but it will do
+x_test$activity_labels <- x_test$activity
+x_test$activity_labels <- factor(x_test$activity_labels, levels = c(1,2,3,4,5,6),
+                                 labels = c("WALKING","WALKING_UPSTAIRS",
+                                            "WALKING_DOWNSTAIRS","SITTING",
+                                            "STANDING","LAYING"))
 
 
-##5.From the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
+x_train <- read.table("UCI HAR Dataset/train/X_train.txt", colClasses = c("numeric"), col.names = features) ## 7352 of 561 v
+y_train <- read.table("UCI HAR Dataset/train/y_train.txt") ## 7352 of 1 v
+subject_train <- read.table("UCI HAR Dataset/train/subject_train.txt") ## 7352 of 1 v
+ 
+x_train <- x_train[c(201, 202, 214, 215, 227, 228, 240, 241, 253, 254, 503, 504, 516, 517, 529, 530, 542, 543)]
 
-Edata$Subject <- as.factor(Edata$Subject)
-Edata <- data.table(Edata)
+x_train[,"activity"] <- y_train
+x_train$activity <- as.factor(x_train$activity)
+x_train[, "subject"] <- subject_train
+x_train$subject <- as.factor(x_train$subject)
 
-tData <- aggregate(. ~Subject + Activity, Edata, mean)
-tData <- tData[order(tData$Subject,tData$Activity),]
+x_train$activity_labels <- x_train$activity
+x_train$activity_labels <- factor(x_train$activity_labels, levels = c(1,2,3,4,5,6),
+                                 labels = c("WALKING","WALKING_UPSTAIRS",
+                                            "WALKING_DOWNSTAIRS","SITTING",
+                                            "STANDING","LAYING"))
 
-write.table(tData,"tidy.txt", row.names=F)
+## Step 1-2:
+## merge all data, free up memory
 
+all_data <- rbind(x_test, x_train)
+# 
+rm(subject_test)
+rm(x_test)
+rm(y_test)
+rm(subject_train)
+rm(x_train)
+rm(y_train)
+rm(features)
 
+#Perform the aggregation on the combined dataset, ignore errors... probably messed something up.
+agg_all <- aggregate(all_data, by= list(all_data$activity_labels, all_data$subject), FUN = mean, na.rm = FALSE)
 
+#write the file out.
+write.table(agg_all, file="tidy_HCI_data.txt", col.names=TRUE)
